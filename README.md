@@ -23,7 +23,7 @@ Because this application is **completely open-source**, the entire code is hoste
 - 🛠️ **Smart Matching Engine:** Resolves tracking name configurations directly from internal `lods.ini` structures to prevent asset alignment game crashes.
 - 🗺️ **Auto-Detection:** Automatically scans the Windows Registry to pinpoint your Assetto Corsa Steam installation paths.
 - 📦 **Universal Unpacker Engine:** Native background extraction handling for `.zip`, `.rar`, and `.7z` extensions.
-- ONLY SUPPORTS CARS. MAPS COMING SOON!
+-  **Supports modded cars, csp, shaders and tracks!**
 
 ## Running From Source (Alternative)
 If you prefer not to use the pre-compiled executable, you can run the raw, transparent script directly via your local terminal setup:
