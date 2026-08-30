@@ -53,25 +53,17 @@ def get_assetto_corsa_path():
 
 
     common_paths = [
-
         r"C:\Program Files (x86)\Steam\steamapps\common\assettocorsa",
-
         r"C:\Program Files\Steam\steamapps\common\assettocorsa",
-
         r"D:\SteamLibrary\steamapps\common\assettocorsa",
-
         r"E:\SteamLibrary\steamapps\common\assettocorsa",
-
         r"F:\SteamLibrary\steamapps\common\assettocorsa"
-
     ]
-
 
     for path in common_paths:
 
         if os.path.isdir(path):
             return path
-
 
     return None
 
@@ -85,22 +77,17 @@ def clean_temp_folder():
     if os.path.exists(TEMP_EXTRACT_DIR):
 
         try:
-            shutil.rmtree(
-                TEMP_EXTRACT_DIR
-            )
+            shutil.rmtree(TEMP_EXTRACT_DIR)
 
         except Exception:
             pass
 
 
 # ============================================================
-# EXTRACT ARCHIVE
+# EXTRACT
 # ============================================================
 
-def extract_archive(
-    archive_path,
-    extract_to
-):
+def extract_archive(archive_path, extract_to):
 
     if patoolib is None:
 
@@ -109,7 +96,6 @@ def extract_archive(
             "Install it with:\n"
             "pip install patool"
         )
-
 
     patoolib.extract_archive(
         archive_path,
@@ -122,10 +108,7 @@ def extract_archive(
 # FILE SEARCH
 # ============================================================
 
-def find_file_recursive(
-    folder,
-    filename
-):
+def find_file_recursive(folder, filename):
 
     filename = filename.lower()
 
@@ -134,19 +117,12 @@ def find_file_recursive(
         for file in files:
 
             if file.lower() == filename:
-
-                return os.path.join(
-                    root,
-                    file
-                )
+                return os.path.join(root, file)
 
     return None
 
 
-def find_files_recursive(
-    folder,
-    extension
-):
+def find_files_recursive(folder, extension):
 
     results = []
 
@@ -156,18 +132,36 @@ def find_files_recursive(
 
         for file in files:
 
-            if file.lower().endswith(
-                extension
-            ):
+            if file.lower().endswith(extension):
 
                 results.append(
-                    os.path.join(
-                        root,
-                        file
-                    )
+                    os.path.join(root, file)
                 )
 
     return results
+
+
+# ============================================================
+# DIRECTORY HELPERS
+# ============================================================
+
+def directory_contains(folder, name):
+
+    target = os.path.join(folder, name)
+
+    return os.path.exists(target)
+
+
+def has_kn5(folder):
+
+    for root, dirs, files in os.walk(folder):
+
+        for file in files:
+
+            if file.lower().endswith(".kn5"):
+                return True
+
+    return False
 
 
 # ============================================================
@@ -182,29 +176,33 @@ def score_car_folder(folder):
         f.lower()
         for f in os.listdir(folder)
         if os.path.isfile(
-            os.path.join(
-                folder,
-                f
-            )
+            os.path.join(folder, f)
         )
     }
 
-
-    # Strong indicators
-
     if "ui_car.json" in files:
-        score += 100
-
+        score += 150
 
     if "data.acd" in files:
-        score += 80
-
+        score += 100
 
     if "lods.ini" in files:
-        score += 70
+        score += 100
 
+    if "car.ini" in files:
+        score += 40
 
-    # KN5 models
+    if "engine.ini" in files:
+        score += 30
+
+    if "suspensions.ini" in files:
+        score += 30
+
+    if "drivetrain.ini" in files:
+        score += 30
+
+    if "tyres.ini" in files:
+        score += 30
 
     kn5_count = sum(
         1
@@ -212,33 +210,7 @@ def score_car_folder(folder):
         if f.endswith(".kn5")
     )
 
-    score += min(
-        kn5_count * 20,
-        60
-    )
-
-
-    # Other common AC car files
-
-    if "car.ini" in files:
-        score += 30
-
-
-    if "engine.ini" in files:
-        score += 20
-
-
-    if "suspensions.ini" in files:
-        score += 20
-
-
-    if "drivetrain.ini" in files:
-        score += 20
-
-
-    if "tyres.ini" in files:
-        score += 20
-
+    score += min(kn5_count * 25, 100)
 
     return score
 
@@ -255,21 +227,21 @@ def score_track_folder(folder):
         f.lower()
         for f in os.listdir(folder)
         if os.path.isfile(
-            os.path.join(
-                folder,
-                f
-            )
+            os.path.join(folder, f)
         )
     }
 
-
     if "ui_track.json" in files:
-        score += 100
-
+        score += 150
 
     if "models.ini" in files:
-        score += 80
+        score += 100
 
+    if "surfaces.ini" in files:
+        score += 50
+
+    if "map.ini" in files:
+        score += 30
 
     kn5_count = sum(
         1
@@ -277,219 +249,503 @@ def score_track_folder(folder):
         if f.endswith(".kn5")
     )
 
-    score += min(
-        kn5_count * 20,
-        80
-    )
-
-
-    if "surfaces.ini" in files:
-        score += 30
-
+    score += min(kn5_count * 25, 100)
 
     return score
 
 
 # ============================================================
-# FIND MOD ROOT
+# CSP / EXTENSION DETECTION
 # ============================================================
 
-def find_mod_root(
-    extracted_folder
-):
+def score_csp_folder(folder):
 
-    possible_cars = []
-    possible_tracks = []
+    score = 0
+
+    files = {
+        f.lower()
+        for f in os.listdir(folder)
+        if os.path.isfile(
+            os.path.join(folder, f)
+        )
+    }
+
+    dirs = {
+        d.lower()
+        for d in os.listdir(folder)
+        if os.path.isdir(
+            os.path.join(folder, d)
+        )
+    }
+
+    if "extension" in dirs:
+        score += 200
+
+    if "ext_config.ini" in files:
+        score += 100
+
+    if "config" in dirs:
+        score += 30
+
+    if "lua" in dirs:
+        score += 30
+
+    if "shaders" in dirs:
+        score += 30
+
+    return score
 
 
-    # --------------------------------------------------------
-    # First scan every directory
-    # --------------------------------------------------------
+# ============================================================
+# DETECT MOD
+# ============================================================
+
+def find_mod_root(extracted_folder):
+
+    car_candidates = []
+    track_candidates = []
+    csp_candidates = []
+
 
     for root, dirs, files in os.walk(
         extracted_folder
     ):
 
-        car_score = score_car_folder(
-            root
-        )
-
-        track_score = score_track_folder(
-            root
-        )
+        car_score = score_car_folder(root)
+        track_score = score_track_folder(root)
+        csp_score = score_csp_folder(root)
 
 
         if car_score > 0:
 
-            possible_cars.append(
-                (
-                    car_score,
-                    root
-                )
+            car_candidates.append(
+                (car_score, root)
             )
 
 
         if track_score > 0:
 
-            possible_tracks.append(
-                (
-                    track_score,
-                    root
-                )
+            track_candidates.append(
+                (track_score, root)
+            )
+
+
+        if csp_score > 0:
+
+            csp_candidates.append(
+                (csp_score, root)
             )
 
 
     # --------------------------------------------------------
-    # Prefer cars with ui_car.json
+    # CAR
     # --------------------------------------------------------
 
-    if possible_cars:
+    if car_candidates:
 
-        possible_cars.sort(
+        car_candidates.sort(
             key=lambda x: x[0],
             reverse=True
         )
 
-        best_score, best_folder = (
-            possible_cars[0]
-        )
-
-        return best_folder, "cars"
+        return car_candidates[0][1], "cars"
 
 
     # --------------------------------------------------------
-    # Otherwise tracks
+    # TRACK
     # --------------------------------------------------------
 
-    if possible_tracks:
+    if track_candidates:
 
-        possible_tracks.sort(
+        track_candidates.sort(
             key=lambda x: x[0],
             reverse=True
         )
 
-        best_score, best_folder = (
-            possible_tracks[0]
+        return track_candidates[0][1], "tracks"
+
+
+    # --------------------------------------------------------
+    # CSP
+    # --------------------------------------------------------
+
+    if csp_candidates:
+
+        csp_candidates.sort(
+            key=lambda x: x[0],
+            reverse=True
         )
 
-        return best_folder, "tracks"
+        return csp_candidates[0][1], "csp"
 
 
     return None, None
 
 
 # ============================================================
-# FIND PROPER AC ROOT
+# FIND CONTENT FOLDER
 # ============================================================
 
-def climb_to_ac_root(
-    folder,
-    extracted_folder,
-    mod_type
-):
+def find_directory_recursive(folder, dirname):
 
-    current = folder
+    dirname = dirname.lower()
 
-    best = folder
+    for root, dirs, files in os.walk(folder):
+
+        for directory in dirs:
+
+            if directory.lower() == dirname:
+
+                return os.path.join(
+                    root,
+                    directory
+                )
+
+    return None
 
 
-    while current != extracted_folder:
+# ============================================================
+# AUTO FIX CAR
+# ============================================================
 
-        parent = os.path.dirname(
-            current
+def repair_car_structure(car_root):
+
+    fixes = []
+
+
+    # --------------------------------------------------------
+    # Find misplaced UI
+    # --------------------------------------------------------
+
+    ui_file = find_file_recursive(
+        car_root,
+        "ui_car.json"
+    )
+
+    if ui_file:
+
+        correct_ui_dir = os.path.join(
+            car_root,
+            "ui"
         )
 
-        if parent == current:
-            break
+        os.makedirs(
+            correct_ui_dir,
+            exist_ok=True
+        )
 
+        correct_ui_file = os.path.join(
+            correct_ui_dir,
+            "ui_car.json"
+        )
 
-        files = {
-            f.lower()
-            for f in os.listdir(parent)
-            if os.path.isfile(
-                os.path.join(
-                    parent,
-                    f
+        if os.path.abspath(ui_file) != os.path.abspath(correct_ui_file):
+
+            try:
+
+                shutil.copy2(
+                    ui_file,
+                    correct_ui_file
                 )
-            )
-        }
 
-
-        if mod_type == "cars":
-
-            indicators = [
-                "ui_car.json",
-                "data.acd",
-                "lods.ini",
-                "car.ini"
-            ]
-
-
-            has_kn5 = any(
-                f.endswith(".kn5")
-                for f in files
-            )
-
-
-            if (
-                any(
-                    x in files
-                    for x in indicators
+                fixes.append(
+                    "Repaired ui_car.json location"
                 )
-                or has_kn5
-            ):
 
-                best = parent
+            except Exception:
+                pass
 
+
+    # --------------------------------------------------------
+    # Find misplaced data.acd
+    # --------------------------------------------------------
+
+    data_acd = find_file_recursive(
+        car_root,
+        "data.acd"
+    )
+
+    if data_acd:
+
+        correct_data = os.path.join(
+            car_root,
+            "data.acd"
+        )
+
+        if os.path.abspath(data_acd) != os.path.abspath(correct_data):
+
+            try:
+
+                shutil.copy2(
+                    data_acd,
+                    correct_data
+                )
+
+                fixes.append(
+                    "Repaired data.acd location"
+                )
+
+            except Exception:
+                pass
+
+
+    # --------------------------------------------------------
+    # Find misplaced lods.ini
+    # --------------------------------------------------------
+
+    lods = find_file_recursive(
+        car_root,
+        "lods.ini"
+    )
+
+    if lods:
+
+        data_folder = os.path.join(
+            car_root,
+            "data"
+        )
+
+        os.makedirs(
+            data_folder,
+            exist_ok=True
+        )
+
+        correct_lods = os.path.join(
+            data_folder,
+            "lods.ini"
+        )
+
+        if os.path.abspath(lods) != os.path.abspath(correct_lods):
+
+            try:
+
+                shutil.copy2(
+                    lods,
+                    correct_lods
+                )
+
+                fixes.append(
+                    "Repaired lods.ini location"
+                )
+
+            except Exception:
+                pass
+
+
+    return fixes
+
+
+# ============================================================
+# AUTO FIX TRACK
+# ============================================================
+
+def repair_track_structure(track_root):
+
+    fixes = []
+
+
+    # --------------------------------------------------------
+    # UI
+    # --------------------------------------------------------
+
+    ui_file = find_file_recursive(
+        track_root,
+        "ui_track.json"
+    )
+
+    if ui_file:
+
+        ui_folder = os.path.join(
+            track_root,
+            "ui"
+        )
+
+        os.makedirs(
+            ui_folder,
+            exist_ok=True
+        )
+
+        correct_ui = os.path.join(
+            ui_folder,
+            "ui_track.json"
+        )
+
+        if os.path.abspath(ui_file) != os.path.abspath(correct_ui):
+
+            try:
+
+                shutil.copy2(
+                    ui_file,
+                    correct_ui
+                )
+
+                fixes.append(
+                    "Repaired ui_track.json location"
+                )
+
+            except Exception:
+                pass
+
+
+    # --------------------------------------------------------
+    # MODELS.INI
+    # --------------------------------------------------------
+
+    models_ini = find_file_recursive(
+        track_root,
+        "models.ini"
+    )
+
+    if models_ini:
+
+        correct_models = os.path.join(
+            track_root,
+            "models.ini"
+        )
+
+        if os.path.abspath(models_ini) != os.path.abspath(correct_models):
+
+            try:
+
+                shutil.copy2(
+                    models_ini,
+                    correct_models
+                )
+
+                fixes.append(
+                    "Repaired models.ini location"
+                )
+
+            except Exception:
+                pass
+
+
+    return fixes
+
+
+# ============================================================
+# CSP INSTALL
+# ============================================================
+
+def merge_directories(source, destination):
+
+    os.makedirs(
+        destination,
+        exist_ok=True
+    )
+
+
+    for item in os.listdir(source):
+
+        source_item = os.path.join(
+            source,
+            item
+        )
+
+        destination_item = os.path.join(
+            destination,
+            item
+        )
+
+
+        if os.path.isdir(source_item):
+
+            merge_directories(
+                source_item,
+                destination_item
+            )
 
         else:
 
-            indicators = [
-                "ui_track.json",
-                "models.ini",
-                "surfaces.ini"
-            ]
+            # Never overwrite silently
+            # Existing files are replaced with
+            # the newer mod version
 
-
-            has_kn5 = any(
-                f.endswith(".kn5")
-                for f in files
+            shutil.copy2(
+                source_item,
+                destination_item
             )
 
 
-            if (
-                any(
-                    x in files
-                    for x in indicators
+# ============================================================
+# FIND CSP EXTENSION
+# ============================================================
+
+def find_extension_folder(folder):
+
+    for root, dirs, files in os.walk(folder):
+
+        for directory in dirs:
+
+            if directory.lower() == "extension":
+
+                return os.path.join(
+                    root,
+                    directory
                 )
-                or has_kn5
-            ):
 
-                best = parent
+    return None
 
 
-        current = parent
+# ============================================================
+# INSTALL CSP
+# ============================================================
+
+def install_csp(
+    mod_root,
+    ac_path
+):
+
+    extension_folder = find_extension_folder(
+        mod_root
+    )
 
 
-    return best
+    if not extension_folder:
+
+        # If the selected folder itself is extension
+
+        if os.path.basename(
+            mod_root
+        ).lower() == "extension":
+
+            extension_folder = mod_root
+
+        else:
+
+            raise Exception(
+                "This appears to be a CSP/shader mod, "
+                "but no extension folder was found."
+            )
+
+
+    destination = os.path.join(
+        ac_path,
+        "extension"
+    )
+
+
+    merge_directories(
+        extension_folder,
+        destination
+    )
+
+
+    return destination
 
 
 # ============================================================
 # VALIDATE CAR
 # ============================================================
 
-def validate_car(
-    car_folder
-):
+def validate_car(car_root):
 
-    problems = []
     found = []
+    problems = []
 
-
-    # KN5
 
     kn5_files = find_files_recursive(
-        car_folder,
+        car_root,
         ".kn5"
     )
 
@@ -507,10 +763,8 @@ def validate_car(
         )
 
 
-    # UI
-
     ui_file = find_file_recursive(
-        car_folder,
+        car_root,
         "ui_car.json"
     )
 
@@ -528,18 +782,14 @@ def validate_car(
         )
 
 
-    # LODS
-
     lods_file = find_file_recursive(
-        car_folder,
+        car_root,
         "lods.ini"
     )
 
 
-    # DATA ACD
-
     data_acd = find_file_recursive(
-        car_folder,
+        car_root,
         "data.acd"
     )
 
@@ -570,16 +820,14 @@ def validate_car(
 # VALIDATE TRACK
 # ============================================================
 
-def validate_track(
-    track_folder
-):
+def validate_track(track_root):
 
-    problems = []
     found = []
+    problems = []
 
 
     kn5_files = find_files_recursive(
-        track_folder,
+        track_root,
         ".kn5"
     )
 
@@ -598,7 +846,7 @@ def validate_track(
 
 
     ui_file = find_file_recursive(
-        track_folder,
+        track_root,
         "ui_track.json"
     )
 
@@ -609,9 +857,15 @@ def validate_track(
             "ui_track.json"
         )
 
+    else:
+
+        problems.append(
+            "ui_track.json not found"
+        )
+
 
     models_ini = find_file_recursive(
-        track_folder,
+        track_root,
         "models.ini"
     )
 
@@ -633,13 +887,58 @@ def validate_track(
 
 
 # ============================================================
-# COPY MOD
+# INSTALL NORMAL MOD
 # ============================================================
 
-def install_folder(
-    source,
-    destination
+def install_normal_mod(
+    mod_root,
+    mod_type,
+    ac_path
 ):
+
+    folder_name = os.path.basename(
+        os.path.normpath(
+            mod_root
+        )
+    )
+
+
+    bad_names = {
+        "",
+        "content",
+        "cars",
+        "tracks",
+        "extension",
+        "assettocorsa"
+    }
+
+
+    if folder_name.lower() in bad_names:
+
+        raise Exception(
+            "Could not determine the correct mod folder name."
+        )
+
+
+    destination = os.path.join(
+        ac_path,
+        "content",
+        mod_type,
+        folder_name
+    )
+
+
+    if os.path.exists(destination):
+
+        replace = messagebox.askyesno(
+            "Mod Already Installed",
+            f"{folder_name} already exists.\n\n"
+            "Replace the existing installation?"
+        )
+
+        if not replace:
+            return None
+
 
     if os.path.exists(destination):
 
@@ -649,9 +948,12 @@ def install_folder(
 
 
     shutil.copytree(
-        source,
+        mod_root,
         destination
     )
+
+
+    return destination
 
 
 # ============================================================
@@ -664,7 +966,7 @@ def identify_and_install():
 
 
     # --------------------------------------------------------
-    # Find Assetto Corsa
+    # Find AC
     # --------------------------------------------------------
 
     if not ac_path:
@@ -743,67 +1045,43 @@ def identify_and_install():
         if not mod_root:
 
             raise Exception(
-                "Could not detect an Assetto Corsa "
-                "car or track in this archive."
+                "Could not detect this mod.\n\n"
+                "The archive does not appear to contain "
+                "a supported Assetto Corsa car, track, "
+                "or CSP/shader installation."
             )
 
 
         # ----------------------------------------------------
-        # Climb to proper root
+        # CSP
         # ----------------------------------------------------
 
-        mod_root = climb_to_ac_root(
-            mod_root,
-            TEMP_EXTRACT_DIR,
-            mod_type
-        )
+        if mod_type == "csp":
 
-
-        # ----------------------------------------------------
-        # Folder name
-        # ----------------------------------------------------
-
-        folder_name = os.path.basename(
-            os.path.normpath(
-                mod_root
-            )
-        )
-
-
-        if not folder_name:
-
-            raise Exception(
-                "Could not determine the mod folder name."
+            destination = install_csp(
+                mod_root,
+                ac_path
             )
 
 
-        # ----------------------------------------------------
-        # Prevent bad generic names
-        # ----------------------------------------------------
-
-        bad_names = {
-            "content",
-            "cars",
-            "tracks",
-            "assettocorsa",
-            "temp",
-            "ac_auto_installer"
-        }
-
-
-        if folder_name.lower() in bad_names:
-
-            raise Exception(
-                "The detected folder is not a valid "
-                "Assetto Corsa mod folder."
+            messagebox.showinfo(
+                "Installation Complete",
+                "CSP/shader files installed successfully!\n\n"
+                f"Merged into:\n{destination}"
             )
 
+            return
+
 
         # ----------------------------------------------------
-        # Validate
+        # AUTO REPAIR
         # ----------------------------------------------------
 
         if mod_type == "cars":
+
+            fixes = repair_car_structure(
+                mod_root
+            )
 
             found, problems = validate_car(
                 mod_root
@@ -811,48 +1089,28 @@ def identify_and_install():
 
         else:
 
+            fixes = repair_track_structure(
+                mod_root
+            )
+
             found, problems = validate_track(
                 mod_root
             )
 
 
         # ----------------------------------------------------
-        # Destination
-        # ----------------------------------------------------
-
-        destination = os.path.join(
-            ac_path,
-            "content",
-            mod_type,
-            folder_name
-        )
-
-
-        # ----------------------------------------------------
-        # Existing installation
-        # ----------------------------------------------------
-
-        if os.path.exists(destination):
-
-            replace = messagebox.askyesno(
-                "Mod Already Installed",
-                f"{folder_name} is already installed.\n\n"
-                "Replace the existing installation?"
-            )
-
-
-            if not replace:
-                return
-
-
-        # ----------------------------------------------------
         # Install
         # ----------------------------------------------------
 
-        install_folder(
+        destination = install_normal_mod(
             mod_root,
-            destination
+            mod_type,
+            ac_path
         )
+
+
+        if destination is None:
+            return
 
 
         # ----------------------------------------------------
@@ -868,22 +1126,50 @@ def identify_and_install():
 
         message = (
             f"{mod_name} installed successfully!\n\n"
-            f"Name: {folder_name}\n"
-            f"Type: {mod_type}\n\n"
+            f"Name: {os.path.basename(mod_root)}\n"
             f"Location:\n{destination}\n\n"
             "Detected files:\n"
-            + "\n".join(
+        )
+
+
+        if found:
+
+            message += "\n".join(
                 f"• {item}"
                 for item in found
             )
-        )
 
+        else:
+
+            message += "None"
+
+
+        # ----------------------------------------------------
+        # Fixes
+        # ----------------------------------------------------
+
+        if fixes:
+
+            message += (
+                "\n\nAuto fixes applied:\n"
+                +
+                "\n".join(
+                    f"• {fix}"
+                    for fix in fixes
+                )
+            )
+
+
+        # ----------------------------------------------------
+        # Warnings
+        # ----------------------------------------------------
 
         if problems:
 
             message += (
                 "\n\nWarnings:\n"
-                + "\n".join(
+                +
+                "\n".join(
                     f"• {problem}"
                     for problem in problems
                 )
@@ -892,7 +1178,7 @@ def identify_and_install():
         else:
 
             message += (
-                "\n\nNo obvious missing files detected."
+                "\n\nNo obvious problems detected."
             )
 
 
@@ -927,7 +1213,7 @@ root.title(
 )
 
 root.geometry(
-    "480x260"
+    "500x290"
 )
 
 root.resizable(
@@ -977,7 +1263,7 @@ button.pack(
 
 supported = Label(
     root,
-    text="ZIP  •  RAR  •  7Z",
+    text="Cars  •  Tracks  •  CSP / Shaders  •  Auto Fix",
     font=(
         "Arial",
         9
