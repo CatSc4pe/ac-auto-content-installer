@@ -4,6 +4,7 @@ import tempfile
 import threading
 import winreg
 import json
+
 from tkinter import (
     Tk,
     Frame,
@@ -14,37 +15,137 @@ from tkinter import (
     DISABLED,
     NORMAL,
     filedialog,
-    messagebox
+    messagebox,
+    StringVar,
+    BooleanVar,
+    Checkbutton,
+    Toplevel,
+    colorchooser
 )
+
 from tkinter import ttk
 
 
 # ============================================================
-# AC AUTO-CONTENT V3
+# AC AUTO-CONTENT V4
 # ============================================================
 
 APP_NAME = "AC Auto-Content"
-VERSION = "3.0"
+VERSION = "4.0"
 
 TEMP_DIR = os.path.join(
     tempfile.gettempdir(),
     "AC_Auto_Content"
 )
 
+SETTINGS_FILE = os.path.join(
+    os.path.expanduser("~"),
+    "AppData",
+    "Local",
+    "AC_Auto_Content",
+    "settings.json"
+)
+
 
 # ============================================================
-# UI COLORS
+# DEFAULT SETTINGS
 # ============================================================
 
-BG = "#101214"
-PANEL = "#181B1F"
-PANEL_2 = "#20242A"
-TEXT = "#F2F4F5"
-MUTED = "#9299A1"
-GREEN = "#19A463"
-GREEN_HOVER = "#21BA70"
-RED = "#D94C4C"
-YELLOW = "#D7A83E"
+DEFAULT_SETTINGS = {
+    "theme": "dark",
+    "accent": "#19A463",
+    "ac_path": "",
+    "auto_fix": True,
+    "delete_temp": True,
+    "show_log": True,
+    "always_on_top": False,
+    "notifications": True
+}
+
+
+settings = DEFAULT_SETTINGS.copy()
+
+
+# ============================================================
+# COLORS
+# ============================================================
+
+DARK = {
+    "bg": "#101214",
+    "panel": "#181B1F",
+    "panel2": "#20242A",
+    "text": "#F2F4F5",
+    "muted": "#9299A1",
+    "entry": "#0B0D0F"
+}
+
+LIGHT = {
+    "bg": "#F3F4F6",
+    "panel": "#FFFFFF",
+    "panel2": "#E5E7EB",
+    "text": "#111827",
+    "muted": "#6B7280",
+    "entry": "#F8FAFC"
+}
+
+
+# ============================================================
+# LOAD SETTINGS
+# ============================================================
+
+def load_settings():
+
+    global settings
+
+    try:
+
+        if os.path.isfile(SETTINGS_FILE):
+
+            with open(
+                SETTINGS_FILE,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                saved = json.load(file)
+
+            settings.update(saved)
+
+    except Exception:
+
+        settings = DEFAULT_SETTINGS.copy()
+
+
+# ============================================================
+# SAVE SETTINGS
+# ============================================================
+
+def save_settings():
+
+    try:
+
+        os.makedirs(
+            os.path.dirname(SETTINGS_FILE),
+            exist_ok=True
+        )
+
+        with open(
+            SETTINGS_FILE,
+            "w",
+            encoding="utf-8"
+        ) as file:
+
+            json.dump(
+                settings,
+                file,
+                indent=4
+            )
+
+    except Exception:
+        pass
+
+
+load_settings()
 
 
 # ============================================================
@@ -58,21 +159,118 @@ except ImportError:
 
 
 # ============================================================
+# THEME
+# ============================================================
+
+def colors():
+
+    if settings["theme"] == "light":
+        return LIGHT
+
+    return DARK
+
+
+def apply_theme():
+
+    c = colors()
+
+    root.configure(
+        bg=c["bg"]
+    )
+
+    try:
+
+        header.configure(
+            bg=c["bg"]
+        )
+
+        title.configure(
+            bg=c["bg"],
+            fg=c["text"]
+        )
+
+        subtitle.configure(
+            bg=c["bg"],
+            fg=c["muted"]
+        )
+
+        panel.configure(
+            bg=c["panel"]
+        )
+
+        supported.configure(
+            bg=c["panel"],
+            fg=settings["accent"]
+        )
+
+        description.configure(
+            bg=c["panel"],
+            fg=c["muted"]
+        )
+
+        status_label.configure(
+            bg=c["panel"],
+            fg=c["muted"]
+        )
+
+        log_title.configure(
+            bg=c["panel"],
+            fg=c["muted"]
+        )
+
+        footer.configure(
+            bg=c["bg"],
+            fg=c["muted"]
+        )
+
+        log_box.configure(
+            bg=c["entry"],
+            fg=c["text"],
+            insertbackground=c["text"]
+        )
+
+        button.configure(
+            bg=settings["accent"],
+            activebackground=settings["accent"]
+        )
+
+        customize_button.configure(
+            bg=c["panel2"],
+            fg=c["text"],
+            activebackground=c["panel2"]
+        )
+
+    except Exception:
+        pass
+
+
+# ============================================================
 # LOGGING
 # ============================================================
 
 def log(message):
 
+    if not settings["show_log"]:
+        return
+
     try:
-        log_box.config(state=NORMAL)
+
+        log_box.config(
+            state=NORMAL
+        )
 
         log_box.insert(
             END,
             message + "\n"
         )
 
-        log_box.see(END)
-        log_box.config(state=DISABLED)
+        log_box.see(
+            END
+        )
+
+        log_box.config(
+            state=DISABLED
+        )
 
         root.update_idletasks()
 
@@ -83,7 +281,11 @@ def log(message):
 def status(message):
 
     try:
-        status_label.config(text=message)
+
+        status_label.config(
+            text=message
+        )
+
         root.update_idletasks()
 
     except Exception:
@@ -93,7 +295,9 @@ def status(message):
 def progress(value):
 
     try:
+
         progress_bar["value"] = value
+
         root.update_idletasks()
 
     except Exception:
@@ -106,10 +310,26 @@ def progress(value):
 
 def get_assetto_corsa_path():
 
+    # Custom path first
+
+    custom = settings.get(
+        "ac_path",
+        ""
+    )
+
+    if custom and os.path.isdir(custom):
+
+        return custom
+
+
     registry_paths = [
+
         r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 244210",
+
         r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 244210"
+
     ]
+
 
     for registry_path in registry_paths:
 
@@ -126,6 +346,7 @@ def get_assetto_corsa_path():
                 )
 
                 if os.path.isdir(path):
+
                     return path
 
         except Exception:
@@ -133,16 +354,24 @@ def get_assetto_corsa_path():
 
 
     common_paths = [
+
         r"C:\Program Files (x86)\Steam\steamapps\common\assettocorsa",
+
         r"C:\Program Files\Steam\steamapps\common\assettocorsa",
+
         r"D:\SteamLibrary\steamapps\common\assettocorsa",
+
         r"E:\SteamLibrary\steamapps\common\assettocorsa",
+
         r"F:\SteamLibrary\steamapps\common\assettocorsa"
+
     ]
+
 
     for path in common_paths:
 
         if os.path.isdir(path):
+
             return path
 
 
@@ -155,10 +384,16 @@ def get_assetto_corsa_path():
 
 def clean_temp():
 
+    if not settings["delete_temp"]:
+        return
+
     if os.path.exists(TEMP_DIR):
 
         try:
-            shutil.rmtree(TEMP_DIR)
+
+            shutil.rmtree(
+                TEMP_DIR
+            )
 
         except Exception:
             pass
@@ -168,7 +403,10 @@ def clean_temp():
 # ARCHIVE EXTRACTION
 # ============================================================
 
-def extract_archive(archive, destination):
+def extract_archive(
+    archive,
+    destination
+):
 
     if patoolib is None:
 
@@ -178,7 +416,11 @@ def extract_archive(archive, destination):
             "pip install patool"
         )
 
-    log("Extracting archive...")
+
+    log(
+        "Extracting archive..."
+    )
+
 
     patoolib.extract_archive(
         archive,
@@ -199,7 +441,10 @@ def get_files(folder):
             f.lower()
             for f in os.listdir(folder)
             if os.path.isfile(
-                os.path.join(folder, f)
+                os.path.join(
+                    folder,
+                    f
+                )
             )
         }
 
@@ -216,7 +461,10 @@ def get_dirs(folder):
             d.lower()
             for d in os.listdir(folder)
             if os.path.isdir(
-                os.path.join(folder, d)
+                os.path.join(
+                    folder,
+                    d
+                )
             )
         }
 
@@ -225,7 +473,10 @@ def get_dirs(folder):
         return set()
 
 
-def find_file(folder, filename):
+def find_file(
+    folder,
+    filename
+):
 
     filename = filename.lower()
 
@@ -243,7 +494,10 @@ def find_file(folder, filename):
     return None
 
 
-def find_files(folder, extension):
+def find_files(
+    folder,
+    extension
+):
 
     results = []
 
@@ -253,7 +507,9 @@ def find_files(folder, extension):
 
         for file in files:
 
-            if file.lower().endswith(extension):
+            if file.lower().endswith(
+                extension
+            ):
 
                 results.append(
                     os.path.join(
@@ -285,7 +541,9 @@ def car_score(folder):
     if "lods.ini" in files:
         score += 500
 
+
     car_files = [
+
         "car.ini",
         "engine.ini",
         "drivetrain.ini",
@@ -293,19 +551,27 @@ def car_score(folder):
         "tyres.ini",
         "aero.ini",
         "electronics.ini"
+
     ]
+
 
     for filename in car_files:
 
         if filename in files:
+
             score += 80
 
 
     kn5_count = sum(
+
         1
+
         for f in files
+
         if f.endswith(".kn5")
+
     )
+
 
     score += min(
         kn5_count * 100,
@@ -339,22 +605,29 @@ def track_score(folder):
     if "map.ini" in files:
         score += 100
 
-    track_files = [
+
+    for filename in [
+
         "lighting.ini",
         "cameras.ini"
-    ]
 
-    for filename in track_files:
+    ]:
 
         if filename in files:
+
             score += 40
 
 
     kn5_count = sum(
+
         1
+
         for f in files
+
         if f.endswith(".kn5")
+
     )
+
 
     score += min(
         kn5_count * 100,
@@ -403,53 +676,35 @@ def csp_score(folder):
 
 
 # ============================================================
-# DETECT MOD
+# MOD DETECTION
 # ============================================================
 
-def detect_mod(extracted):
-
-    candidates = []
-
-
-    for root, dirs, files in os.walk(extracted):
-
-        cs = car_score(root)
-        ts = track_score(root)
-        cps = csp_score(root)
-
-
-        if cs >= 500:
-
-            candidates.append(
-                (cs, "cars", root)
-            )
-
-
-        if ts >= 500:
-
-            candidates.append(
-                (ts, "tracks", root)
-            )
-
-
-        if cps >= 500:
-
-            candidates.append(
-                (cps, "csp", root)
-            )
-
-
-    if not candidates:
-
-        return None, None
-
-
-    # Strong UI identifiers override weaker guesses
+def detect_mod(
+    extracted
+):
 
     car_ui = find_file(
         extracted,
         "ui_car.json"
     )
+
+
+    if car_ui:
+
+        root_folder = os.path.dirname(
+            car_ui
+        )
+
+        if os.path.basename(
+            root_folder
+        ).lower() == "ui":
+
+            root_folder = os.path.dirname(
+                root_folder
+            )
+
+        return root_folder, "cars"
+
 
     track_ui = find_file(
         extracted,
@@ -457,30 +712,73 @@ def detect_mod(extracted):
     )
 
 
-    if car_ui:
-
-        current = os.path.dirname(car_ui)
-
-        if os.path.basename(
-            current
-        ).lower() == "ui":
-
-            current = os.path.dirname(current)
-
-        return current, "cars"
-
-
     if track_ui:
 
-        current = os.path.dirname(track_ui)
+        root_folder = os.path.dirname(
+            track_ui
+        )
 
         if os.path.basename(
-            current
+            root_folder
         ).lower() == "ui":
 
-            current = os.path.dirname(current)
+            root_folder = os.path.dirname(
+                root_folder
+            )
 
-        return current, "tracks"
+        return root_folder, "tracks"
+
+
+    candidates = []
+
+
+    for root, dirs, files in os.walk(
+        extracted
+    ):
+
+        cs = car_score(root)
+
+        ts = track_score(root)
+
+        cps = csp_score(root)
+
+
+        if cs >= 500:
+
+            candidates.append(
+                (
+                    cs,
+                    "cars",
+                    root
+                )
+            )
+
+
+        if ts >= 500:
+
+            candidates.append(
+                (
+                    ts,
+                    "tracks",
+                    root
+                )
+            )
+
+
+        if cps >= 500:
+
+            candidates.append(
+                (
+                    cps,
+                    "csp",
+                    root
+                )
+            )
+
+
+    if not candidates:
+
+        return None, None
 
 
     candidates.sort(
@@ -496,12 +794,16 @@ def detect_mod(extracted):
 
 
 # ============================================================
-# UNWRAP ASSETTO CORSA CONTENT
+# UNWRAP CAR / TRACK
 # ============================================================
 
-def unwrap_content_root(folder, mod_type):
+def unwrap_content_root(
+    folder,
+    mod_type
+):
 
     current = folder
+
 
     for _ in range(10):
 
@@ -509,81 +811,88 @@ def unwrap_content_root(folder, mod_type):
 
         try:
 
-            children = os.listdir(current)
+            children = os.listdir(
+                current
+            )
 
         except Exception:
 
             break
 
 
-        # Look for a content folder
-
         content_path = os.path.join(
             current,
             "content"
         )
 
-        if os.path.isdir(content_path):
+
+        if os.path.isdir(
+            content_path
+        ):
 
             type_path = os.path.join(
                 content_path,
                 mod_type
             )
 
-            if os.path.isdir(type_path):
 
-                subfolders = [
-                    d
-                    for d in os.listdir(type_path)
+            if os.path.isdir(
+                type_path
+            ):
+
+                candidates = [
+
+                    os.path.join(
+                        type_path,
+                        d
+                    )
+
+                    for d in os.listdir(
+                        type_path
+                    )
+
                     if os.path.isdir(
                         os.path.join(
                             type_path,
                             d
                         )
                     )
+
                 ]
 
-                if subfolders:
 
-                    # Pick the strongest candidate
+                if candidates:
 
-                    best = None
-                    best_score = -1
-
-                    for subfolder in subfolders:
-
-                        candidate = os.path.join(
-                            type_path,
-                            subfolder
-                        )
-
-                        score = (
-                            car_score(candidate)
-                            if mod_type == "cars"
-                            else track_score(candidate)
-                        )
-
-                        if score > best_score:
-
-                            best_score = score
-                            best = candidate
-
-                    if best:
-                        return best
+                    candidates.sort(
+                        key=lambda x:
+                        car_score(x)
+                        if mod_type == "cars"
+                        else track_score(x),
+                        reverse=True
+                    )
 
 
-        # Direct nested mod folder
+                    return candidates[0]
+
 
         directories = [
+
             d
+
             for d in children
+
             if os.path.isdir(
-                os.path.join(current, d)
+                os.path.join(
+                    current,
+                    d
+                )
             )
+
         ]
 
 
         if len(directories) != 1:
+
             break
 
 
@@ -593,23 +902,35 @@ def unwrap_content_root(folder, mod_type):
         )
 
 
-        if mod_type == "cars":
+        old_score = (
 
-            if car_score(candidate) > car_score(current):
+            car_score(current)
 
-                current = candidate
-                continue
+            if mod_type == "cars"
 
+            else track_score(current)
+
+        )
+
+
+        new_score = (
+
+            car_score(candidate)
+
+            if mod_type == "cars"
+
+            else track_score(candidate)
+
+        )
+
+
+        if new_score > old_score:
+
+            current = candidate
 
         else:
 
-            if track_score(candidate) > track_score(current):
-
-                current = candidate
-                continue
-
-
-        break
+            break
 
 
     return current
@@ -619,10 +940,15 @@ def unwrap_content_root(folder, mod_type):
 # SAFE COPY
 # ============================================================
 
-def copy_file_safe(source, destination):
+def copy_file_safe(
+    source,
+    destination
+):
 
     os.makedirs(
-        os.path.dirname(destination),
+        os.path.dirname(
+            destination
+        ),
         exist_ok=True
     )
 
@@ -633,17 +959,15 @@ def copy_file_safe(source, destination):
 
 
 # ============================================================
-# CAR AUTO FIX
+# CAR REPAIR
 # ============================================================
 
-def repair_car(folder):
+def repair_car(
+    folder
+):
 
     fixes = []
 
-
-    # --------------------------------------------------------
-    # ui_car.json
-    # --------------------------------------------------------
 
     ui = find_file(
         folder,
@@ -653,13 +977,9 @@ def repair_car(folder):
 
     if ui:
 
-        ui_dir = os.path.join(
-            folder,
-            "ui"
-        )
-
         target = os.path.join(
-            ui_dir,
+            folder,
+            "ui",
             "ui_car.json"
         )
 
@@ -676,10 +996,6 @@ def repair_car(folder):
             )
 
 
-    # --------------------------------------------------------
-    # lods.ini
-    # --------------------------------------------------------
-
     lods = find_file(
         folder,
         "lods.ini"
@@ -688,13 +1004,9 @@ def repair_car(folder):
 
     if lods:
 
-        data_dir = os.path.join(
-            folder,
-            "data"
-        )
-
         target = os.path.join(
-            data_dir,
+            folder,
+            "data",
             "lods.ini"
         )
 
@@ -711,124 +1023,19 @@ def repair_car(folder):
             )
 
 
-    # --------------------------------------------------------
-    # Validate LOD references
-    # --------------------------------------------------------
-
-    lods = find_file(
-        folder,
-        "lods.ini"
-    )
-
-
-    if lods:
-
-        try:
-
-            with open(
-                lods,
-                "r",
-                encoding="utf-8",
-                errors="ignore"
-            ) as file:
-
-                content = file.read()
-
-
-            referenced = []
-
-            for line in content.splitlines():
-
-                line = line.strip()
-
-                if line.lower().startswith(
-                    "file="
-                ):
-
-                    value = line.split(
-                        "=",
-                        1
-                    )[1].strip()
-
-                    value = value.replace(
-                        "\\",
-                        os.sep
-                    )
-
-                    referenced.append(
-                        value
-                    )
-
-
-            for reference in referenced:
-
-                possible = os.path.join(
-                    folder,
-                    reference
-                )
-
-
-                if not os.path.isfile(
-                    possible
-                ):
-
-                    basename = os.path.basename(
-                        reference
-                    )
-
-
-                    matches = []
-
-                    for kn5 in find_files(
-                        folder,
-                        ".kn5"
-                    ):
-
-                        if os.path.basename(
-                            kn5
-                        ).lower() == basename.lower():
-
-                            matches.append(kn5)
-
-
-                    if matches:
-
-                        relative = os.path.relpath(
-                            matches[0],
-                            os.path.dirname(lods)
-                        )
-
-
-                        fixes.append(
-                            f"Found LOD model: {basename}"
-                        )
-
-                    else:
-
-                        fixes.append(
-                            f"Warning: LOD model missing: {basename}"
-                        )
-
-
-        except Exception:
-            pass
-
-
     return fixes
 
 
 # ============================================================
-# TRACK AUTO FIX
+# TRACK REPAIR
 # ============================================================
 
-def repair_track(folder):
+def repair_track(
+    folder
+):
 
     fixes = []
 
-
-    # --------------------------------------------------------
-    # ui_track.json
-    # --------------------------------------------------------
 
     ui = find_file(
         folder,
@@ -838,13 +1045,9 @@ def repair_track(folder):
 
     if ui:
 
-        ui_dir = os.path.join(
-            folder,
-            "ui"
-        )
-
         target = os.path.join(
-            ui_dir,
+            folder,
+            "ui",
             "ui_track.json"
         )
 
@@ -860,10 +1063,6 @@ def repair_track(folder):
                 "Moved ui_track.json into ui/"
             )
 
-
-    # --------------------------------------------------------
-    # models.ini
-    # --------------------------------------------------------
 
     models = find_file(
         folder,
@@ -891,111 +1090,23 @@ def repair_track(folder):
             )
 
 
-    # --------------------------------------------------------
-    # Validate model references
-    # --------------------------------------------------------
-
-    models = find_file(
-        folder,
-        "models.ini"
-    )
-
-
-    if models:
-
-        try:
-
-            with open(
-                models,
-                "r",
-                encoding="utf-8",
-                errors="ignore"
-            ) as file:
-
-                content = file.read()
-
-
-            for line in content.splitlines():
-
-                line = line.strip()
-
-
-                if line.lower().startswith(
-                    "file="
-                ):
-
-                    reference = line.split(
-                        "=",
-                        1
-                    )[1].strip()
-
-
-                    reference = reference.replace(
-                        "\\",
-                        os.sep
-                    )
-
-
-                    direct = os.path.join(
-                        os.path.dirname(models),
-                        reference
-                    )
-
-
-                    if not os.path.isfile(
-                        direct
-                    ):
-
-                        basename = os.path.basename(
-                            reference
-                        )
-
-
-                        matches = [
-                            x
-                            for x in find_files(
-                                folder,
-                                ".kn5"
-                            )
-                            if os.path.basename(
-                                x
-                            ).lower()
-                            == basename.lower()
-                        ]
-
-
-                        if matches:
-
-                            fixes.append(
-                                f"Found model: {basename}"
-                            )
-
-                        else:
-
-                            fixes.append(
-                                f"Warning: model missing: {basename}"
-                            )
-
-
-        except Exception:
-            pass
-
-
     return fixes
 
 
 # ============================================================
-# CSP STRUCTURE FINDER
+# CSP FINDER
 # ============================================================
 
-def find_extension(folder):
-
-    # Prefer the extension folder closest to root
+def find_extension(
+    folder
+):
 
     candidates = []
 
 
-    for root, dirs, files in os.walk(folder):
+    for root, dirs, files in os.walk(
+        folder
+    ):
 
         for directory in dirs:
 
@@ -1006,12 +1117,12 @@ def find_extension(folder):
                     directory
                 )
 
-                depth = path.count(
-                    os.sep
-                )
 
                 candidates.append(
-                    (depth, path)
+                    (
+                        path.count(os.sep),
+                        path
+                    )
                 )
 
 
@@ -1029,143 +1140,7 @@ def find_extension(folder):
 
 
 # ============================================================
-# CSP AUTO FIX
-# ============================================================
-
-def repair_csp(source):
-
-    fixes = []
-
-
-    extension = find_extension(
-        source
-    )
-
-
-    if not extension:
-
-        return fixes
-
-
-    # Fix extension/extension nesting
-
-    while True:
-
-        nested = os.path.join(
-            extension,
-            "extension"
-        )
-
-
-        if not os.path.isdir(
-            nested
-        ):
-
-            break
-
-
-        log(
-            "Found nested extension folder"
-        )
-
-
-        # Move nested contents upward
-
-        for item in os.listdir(nested):
-
-            src = os.path.join(
-                nested,
-                item
-            )
-
-            dst = os.path.join(
-                extension,
-                item
-            )
-
-
-            if os.path.exists(dst):
-
-                if os.path.isdir(src):
-
-                    merge_directories(
-                        src,
-                        dst
-                    )
-
-                else:
-
-                    shutil.copy2(
-                        src,
-                        dst
-                    )
-
-            else:
-
-                shutil.move(
-                    src,
-                    dst
-                )
-
-
-        try:
-            os.rmdir(nested)
-        except Exception:
-            pass
-
-
-        fixes.append(
-            "Unwrapped nested extension folder"
-        )
-
-
-    # Detect useful CSP folders
-
-    folders = [
-        "config",
-        "lua",
-        "shaders",
-        "weather",
-        "ppfilters",
-        "textures"
-    ]
-
-
-    for folder_name in folders:
-
-        path = os.path.join(
-            extension,
-            folder_name
-        )
-
-
-        if os.path.isdir(path):
-
-            fixes.append(
-                f"Verified extension/{folder_name}"
-            )
-
-
-    # Find configs
-
-    config_files = find_files(
-        extension,
-        ".ini"
-    )
-
-
-    if config_files:
-
-        fixes.append(
-            f"Found {len(config_files)} CSP config file(s)"
-        )
-
-
-    return fixes
-
-
-# ============================================================
-# MERGE DIRECTORIES
+# CSP REPAIR
 # ============================================================
 
 def merge_directories(
@@ -1179,7 +1154,9 @@ def merge_directories(
     )
 
 
-    for item in os.listdir(source):
+    for item in os.listdir(
+        source
+    ):
 
         src = os.path.join(
             source,
@@ -1201,17 +1178,94 @@ def merge_directories(
 
         else:
 
-            # CSP mods commonly update existing configs
-            # so copy the mod version
-
             shutil.copy2(
                 src,
                 dst
             )
 
 
+def repair_csp(
+    folder
+):
+
+    fixes = []
+
+
+    extension = find_extension(
+        folder
+    )
+
+
+    if not extension:
+
+        return fixes
+
+
+    while True:
+
+        nested = os.path.join(
+            extension,
+            "extension"
+        )
+
+
+        if not os.path.isdir(
+            nested
+        ):
+
+            break
+
+
+        merge_directories(
+            nested,
+            extension
+        )
+
+
+        try:
+
+            os.rmdir(
+                nested
+            )
+
+        except Exception:
+            pass
+
+
+        fixes.append(
+            "Removed nested extension folder"
+        )
+
+
+    for folder_name in [
+
+        "config",
+        "lua",
+        "shaders",
+        "weather",
+        "ppfilters",
+        "textures"
+
+    ]:
+
+        path = os.path.join(
+            extension,
+            folder_name
+        )
+
+
+        if os.path.isdir(path):
+
+            fixes.append(
+                f"Verified extension/{folder_name}"
+            )
+
+
+    return fixes
+
+
 # ============================================================
-# INSTALL CSP
+# CSP INSTALL
 # ============================================================
 
 def install_csp(
@@ -1227,7 +1281,7 @@ def install_csp(
     if not extension:
 
         raise Exception(
-            "No extension folder was found."
+            "No extension folder found."
         )
 
 
@@ -1250,9 +1304,12 @@ def install_csp(
 # VALIDATION
 # ============================================================
 
-def validate_car(folder):
+def validate_car(
+    folder
+):
 
     found = []
+
     warnings = []
 
 
@@ -1328,9 +1385,12 @@ def validate_car(folder):
     return found, warnings
 
 
-def validate_track(folder):
+def validate_track(
+    folder
+):
 
     found = []
+
     warnings = []
 
 
@@ -1395,7 +1455,7 @@ def validate_track(folder):
 
 
 # ============================================================
-# NORMAL INSTALL
+# INSTALL NORMAL
 # ============================================================
 
 def install_normal(
@@ -1405,11 +1465,14 @@ def install_normal(
 ):
 
     name = os.path.basename(
-        os.path.normpath(source)
+        os.path.normpath(
+            source
+        )
     )
 
 
     invalid_names = {
+
         "",
         "content",
         "cars",
@@ -1418,13 +1481,14 @@ def install_normal(
         "assettocorsa",
         "mod",
         "mods"
+
     }
 
 
     if name.lower() in invalid_names:
 
         raise Exception(
-            "Could not determine the real mod name."
+            "Could not determine the mod name."
         )
 
 
@@ -1436,7 +1500,9 @@ def install_normal(
     )
 
 
-    if os.path.exists(destination):
+    if os.path.exists(
+        destination
+    ):
 
         replace = messagebox.askyesno(
             "Mod Already Installed",
@@ -1446,6 +1512,7 @@ def install_normal(
 
 
         if not replace:
+
             return None
 
 
@@ -1464,7 +1531,7 @@ def install_normal(
 
 
 # ============================================================
-# MAIN INSTALL WORKER
+# MAIN WORKER
 # ============================================================
 
 def install_worker(
@@ -1483,15 +1550,12 @@ def install_worker(
 
         clean_temp()
 
+
         os.makedirs(
             TEMP_DIR,
             exist_ok=True
         )
 
-
-        # ----------------------------------------------------
-        # EXTRACT
-        # ----------------------------------------------------
 
         status(
             "Extracting archive..."
@@ -1505,10 +1569,6 @@ def install_worker(
             TEMP_DIR
         )
 
-
-        # ----------------------------------------------------
-        # DETECT
-        # ----------------------------------------------------
 
         status(
             "Analyzing mod..."
@@ -1527,20 +1587,16 @@ def install_worker(
             raise Exception(
                 "Could not detect this archive.\n\n"
                 "Supported types:\n"
-                "• Cars\n"
-                "• Tracks\n"
-                "• CSP / Shaders"
+                "Cars\n"
+                "Tracks\n"
+                "CSP / Shaders"
             )
 
 
         log(
-            f"Detected type: {mod_type}"
+            f"Detected: {mod_type}"
         )
 
-
-        # ----------------------------------------------------
-        # UNWRAP CARS / TRACKS
-        # ----------------------------------------------------
 
         if mod_type in (
             "cars",
@@ -1553,27 +1609,27 @@ def install_worker(
             )
 
 
-        log(
-            f"Mod folder: {mod_root}"
-        )
-
-
-        # ----------------------------------------------------
+        # ====================================================
         # CSP
-        # ----------------------------------------------------
+        # ====================================================
 
         if mod_type == "csp":
 
             status(
-                "Repairing CSP / shaders..."
+                "Repairing CSP..."
             )
 
             progress(50)
 
 
-            fixes = repair_csp(
-                mod_root
-            )
+            fixes = []
+
+
+            if settings["auto_fix"]:
+
+                fixes = repair_csp(
+                    mod_root
+                )
 
 
             status(
@@ -1599,7 +1655,7 @@ def install_worker(
 
             result = (
                 "CSP / shaders installed successfully\n\n"
-                f"Merged into:\n{destination}"
+                f"Installed into:\n{destination}"
             )
 
 
@@ -1609,36 +1665,44 @@ def install_worker(
                     "\n\nAuto fixes:\n"
                     +
                     "\n".join(
-                        f"• {fix}"
-                        for fix in fixes
+                        f"• {x}"
+                        for x in fixes
                     )
                 )
 
 
-            messagebox.showinfo(
-                "Installation Complete",
-                result
-            )
+            if settings["notifications"]:
+
+                messagebox.showinfo(
+                    "Installation Complete",
+                    result
+                )
+
 
             return
 
 
-        # ----------------------------------------------------
-        # CAR
-        # ----------------------------------------------------
+        # ====================================================
+        # CARS
+        # ====================================================
 
         if mod_type == "cars":
 
             status(
-                "Repairing car..."
+                "Checking car..."
             )
 
             progress(50)
 
 
-            fixes = repair_car(
-                mod_root
-            )
+            fixes = []
+
+
+            if settings["auto_fix"]:
+
+                fixes = repair_car(
+                    mod_root
+                )
 
 
             found, warnings = validate_car(
@@ -1646,22 +1710,27 @@ def install_worker(
             )
 
 
-        # ----------------------------------------------------
-        # TRACK
-        # ----------------------------------------------------
+        # ====================================================
+        # TRACKS
+        # ====================================================
 
         else:
 
             status(
-                "Repairing track..."
+                "Checking track..."
             )
 
             progress(50)
 
 
-            fixes = repair_track(
-                mod_root
-            )
+            fixes = []
+
+
+            if settings["auto_fix"]:
+
+                fixes = repair_track(
+                    mod_root
+                )
 
 
             found, warnings = validate_track(
@@ -1669,9 +1738,9 @@ def install_worker(
             )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # INSTALL
-        # ----------------------------------------------------
+        # ====================================================
 
         status(
             "Installing..."
@@ -1698,14 +1767,11 @@ def install_worker(
 
         progress(100)
 
+
         status(
             "Installation complete"
         )
 
-
-        # ----------------------------------------------------
-        # RESULT
-        # ----------------------------------------------------
 
         type_name = (
             "Car"
@@ -1727,8 +1793,8 @@ def install_worker(
         if found:
 
             result += "\n".join(
-                f"• {item}"
-                for item in found
+                f"• {x}"
+                for x in found
             )
 
         else:
@@ -1742,8 +1808,8 @@ def install_worker(
                 "\n\nAuto fixes:\n"
                 +
                 "\n".join(
-                    f"• {fix}"
-                    for fix in fixes
+                    f"• {x}"
+                    for x in fixes
                 )
             )
 
@@ -1754,16 +1820,18 @@ def install_worker(
                 "\n\nWarnings:\n"
                 +
                 "\n".join(
-                    f"• {warning}"
-                    for warning in warnings
+                    f"• {x}"
+                    for x in warnings
                 )
             )
 
 
-        messagebox.showinfo(
-            "Installation Complete",
-            result
-        )
+        if settings["notifications"]:
+
+            messagebox.showinfo(
+                "Installation Complete",
+                result
+            )
 
 
     except Exception as error:
@@ -1791,7 +1859,7 @@ def install_worker(
 
 
 # ============================================================
-# SELECT ARCHIVE
+# SELECT MOD
 # ============================================================
 
 def select_mod():
@@ -1801,19 +1869,19 @@ def select_mod():
 
     if not ac_path:
 
-        messagebox.showinfo(
-            "Assetto Corsa",
-            "Assetto Corsa could not be found automatically."
-        )
-
-
         ac_path = filedialog.askdirectory(
-            title="Select your Assetto Corsa folder"
+            title="Select Assetto Corsa folder"
         )
 
 
         if not ac_path:
+
             return
+
+
+        settings["ac_path"] = ac_path
+
+        save_settings()
 
 
     archive = filedialog.askopenfilename(
@@ -1821,31 +1889,39 @@ def select_mod():
         title="Select Assetto Corsa Mod",
 
         filetypes=[
+
             (
                 "Assetto Corsa Mods",
                 "*.zip;*.rar;*.7z"
             ),
+
             (
                 "ZIP",
                 "*.zip"
             ),
+
             (
                 "RAR",
                 "*.rar"
             ),
+
             (
                 "7Z",
                 "*.7z"
             ),
+
             (
                 "All Files",
                 "*.*"
             )
+
         ]
+
     )
 
 
     if not archive:
+
         return
 
 
@@ -1869,12 +1945,16 @@ def select_mod():
 
 
     thread = threading.Thread(
+
         target=install_worker,
+
         args=(
             archive,
             ac_path
         ),
+
         daemon=True
+
     )
 
 
@@ -1882,7 +1962,385 @@ def select_mod():
 
 
 # ============================================================
-# GUI
+# CUSTOMIZATION WINDOW
+# ============================================================
+
+def open_customization():
+
+    window = Toplevel(
+        root
+    )
+
+    window.title(
+        "Customization"
+    )
+
+    window.geometry(
+        "520x610"
+    )
+
+    window.resizable(
+        False,
+        False
+    )
+
+    c = colors()
+
+    window.configure(
+        bg=c["bg"]
+    )
+
+
+    # ========================================================
+    # HEADER
+    # ========================================================
+
+    Label(
+        window,
+        text="Customization",
+        bg=c["bg"],
+        fg=c["text"],
+        font=(
+            "Segoe UI",
+            22,
+            "bold"
+        )
+    ).pack(
+        anchor="w",
+        padx=30,
+        pady=(28, 5)
+    )
+
+
+    Label(
+        window,
+        text="Change how AC Auto-Content looks and behaves",
+        bg=c["bg"],
+        fg=c["muted"],
+        font=(
+            "Segoe UI",
+            9
+        )
+    ).pack(
+        anchor="w",
+        padx=30,
+        pady=(0, 25)
+    )
+
+
+    # ========================================================
+    # APPEARANCE
+    # ========================================================
+
+    appearance = Frame(
+        window,
+        bg=c["panel"]
+    )
+
+    appearance.pack(
+        fill="x",
+        padx=25,
+        pady=8
+    )
+
+
+    Label(
+        appearance,
+        text="Appearance",
+        bg=c["panel"],
+        fg=c["text"],
+        font=(
+            "Segoe UI",
+            11,
+            "bold"
+        )
+    ).pack(
+        anchor="w",
+        padx=18,
+        pady=(15, 10)
+    )
+
+
+    theme_var = StringVar(
+        value=settings["theme"]
+    )
+
+
+    def change_theme():
+
+        settings["theme"] = theme_var.get()
+
+        save_settings()
+
+        apply_theme()
+
+        window.destroy()
+
+        open_customization()
+
+
+    ttk.Radiobutton(
+        appearance,
+        text="Dark mode",
+        variable=theme_var,
+        value="dark",
+        command=change_theme
+    ).pack(
+        anchor="w",
+        padx=18,
+        pady=4
+    )
+
+
+    ttk.Radiobutton(
+        appearance,
+        text="Light mode",
+        variable=theme_var,
+        value="light",
+        command=change_theme
+    ).pack(
+        anchor="w",
+        padx=18,
+        pady=(4, 18)
+    )
+
+
+    # ========================================================
+    # ACCENT
+    # ========================================================
+
+    accent_frame = Frame(
+        window,
+        bg=c["panel"]
+    )
+
+    accent_frame.pack(
+        fill="x",
+        padx=25,
+        pady=8
+    )
+
+
+    Label(
+        accent_frame,
+        text="Accent Color",
+        bg=c["panel"],
+        fg=c["text"],
+        font=(
+            "Segoe UI",
+            11,
+            "bold"
+        )
+    ).pack(
+        anchor="w",
+        padx=18,
+        pady=(15, 10)
+    )
+
+
+    Label(
+        accent_frame,
+        text="Change the main app color",
+        bg=c["panel"],
+        fg=c["muted"]
+    ).pack(
+        anchor="w",
+        padx=18
+    )
+
+
+    def choose_color():
+
+        chosen = colorchooser.askcolor(
+            color=settings["accent"],
+            title="Choose accent color"
+        )
+
+
+        if chosen[1]:
+
+            settings["accent"] = chosen[1]
+
+            save_settings()
+
+            apply_theme()
+
+            window.destroy()
+
+            open_customization()
+
+
+    Button(
+        accent_frame,
+        text="Choose Accent Color",
+        command=choose_color,
+        bg=settings["accent"],
+        fg="white",
+        relief="flat",
+        padx=20,
+        pady=9,
+        cursor="hand2"
+    ).pack(
+        anchor="w",
+        padx=18,
+        pady=12
+    )
+
+
+    # ========================================================
+    # OPTIONS
+    # ========================================================
+
+    options = Frame(
+        window,
+        bg=c["panel"]
+    )
+
+    options.pack(
+        fill="x",
+        padx=25,
+        pady=8
+    )
+
+
+    Label(
+        options,
+        text="Installer",
+        bg=c["panel"],
+        fg=c["text"],
+        font=(
+            "Segoe UI",
+            11,
+            "bold"
+        )
+    ).pack(
+        anchor="w",
+        padx=18,
+        pady=(15, 10)
+    )
+
+
+    auto_fix_var = BooleanVar(
+        value=settings["auto_fix"]
+    )
+
+    temp_var = BooleanVar(
+        value=settings["delete_temp"]
+    )
+
+    log_var = BooleanVar(
+        value=settings["show_log"]
+    )
+
+    top_var = BooleanVar(
+        value=settings["always_on_top"]
+    )
+
+    notification_var = BooleanVar(
+        value=settings["notifications"]
+    )
+
+
+    def save_options():
+
+        settings["auto_fix"] = auto_fix_var.get()
+
+        settings["delete_temp"] = temp_var.get()
+
+        settings["show_log"] = log_var.get()
+
+        settings["always_on_top"] = top_var.get()
+
+        settings["notifications"] = notification_var.get()
+
+        save_settings()
+
+        root.attributes(
+            "-topmost",
+            settings["always_on_top"]
+        )
+
+        apply_theme()
+
+        window.destroy()
+
+
+    options_list = [
+
+        (
+            auto_fix_var,
+            "Automatically repair broken mod structures"
+        ),
+
+        (
+            temp_var,
+            "Delete temporary extracted files"
+        ),
+
+        (
+            log_var,
+            "Show installation log"
+        ),
+
+        (
+            top_var,
+            "Keep AC Auto-Content always on top"
+        ),
+
+        (
+            notification_var,
+            "Show installation notifications"
+        )
+
+    ]
+
+
+    for variable, text in options_list:
+
+        Checkbutton(
+            options,
+            text=text,
+            variable=variable,
+            bg=c["panel"],
+            fg=c["text"],
+            activebackground=c["panel"],
+            activeforeground=c["text"],
+            selectcolor=c["panel2"],
+            font=(
+                "Segoe UI",
+                9
+            )
+        ).pack(
+            anchor="w",
+            padx=18,
+            pady=4
+        )
+
+
+    Button(
+        window,
+        text="SAVE SETTINGS",
+        command=save_options,
+        bg=settings["accent"],
+        fg="white",
+        activebackground=settings["accent"],
+        relief="flat",
+        borderwidth=0,
+        font=(
+            "Segoe UI",
+            10,
+            "bold"
+        ),
+        padx=35,
+        pady=11,
+        cursor="hand2"
+    ).pack(
+        pady=20
+    )
+
+
+# ============================================================
+# MAIN GUI
 # ============================================================
 
 root = Tk()
@@ -1892,7 +2350,7 @@ root.title(
 )
 
 root.geometry(
-    "700x610"
+    "700x650"
 )
 
 root.resizable(
@@ -1900,8 +2358,9 @@ root.resizable(
     False
 )
 
-root.configure(
-    bg=BG
+root.attributes(
+    "-topmost",
+    settings["always_on_top"]
 )
 
 
@@ -1910,8 +2369,7 @@ root.configure(
 # ============================================================
 
 header = Frame(
-    root,
-    bg=BG
+    root
 )
 
 header.pack(
@@ -1924,8 +2382,6 @@ header.pack(
 title = Label(
     header,
     text="AC Auto-Content",
-    bg=BG,
-    fg=TEXT,
     font=(
         "Segoe UI",
         25,
@@ -1941,8 +2397,6 @@ title.pack(
 subtitle = Label(
     header,
     text="Automatic Assetto Corsa mod installer",
-    bg=BG,
-    fg=MUTED,
     font=(
         "Segoe UI",
         10
@@ -1956,12 +2410,37 @@ subtitle.pack(
 
 
 # ============================================================
+# CUSTOMIZATION BUTTON
+# ============================================================
+
+customize_button = Button(
+    root,
+    text="⚙  Customization",
+    command=open_customization,
+    relief="flat",
+    borderwidth=0,
+    font=(
+        "Segoe UI",
+        9,
+        "bold"
+    ),
+    padx=15,
+    pady=7,
+    cursor="hand2"
+)
+
+customize_button.place(
+    x=525,
+    y=32
+)
+
+
+# ============================================================
 # MAIN PANEL
 # ============================================================
 
 panel = Frame(
-    root,
-    bg=PANEL
+    root
 )
 
 panel.pack(
@@ -1972,15 +2451,9 @@ panel.pack(
 )
 
 
-# ============================================================
-# SUPPORTED TYPES
-# ============================================================
-
 supported = Label(
     panel,
     text="CARS    •    TRACKS    •    CSP    •    SHADERS",
-    bg=PANEL,
-    fg=GREEN,
     font=(
         "Segoe UI",
         10,
@@ -1993,18 +2466,12 @@ supported.pack(
 )
 
 
-# ============================================================
-# DESCRIPTION
-# ============================================================
-
 description = Label(
     panel,
     text=(
         "Automatically detects, repairs and installs "
         "Assetto Corsa content"
     ),
-    bg=PANEL,
-    fg=MUTED,
     font=(
         "Segoe UI",
         9
@@ -2016,18 +2483,11 @@ description.pack(
 )
 
 
-# ============================================================
-# BUTTON
-# ============================================================
-
 button = Button(
     panel,
     text="SELECT MOD ARCHIVE",
     command=select_mod,
-    bg=GREEN,
     fg="white",
-    activebackground=GREEN_HOVER,
-    activeforeground="white",
     relief="flat",
     borderwidth=0,
     font=(
@@ -2045,15 +2505,9 @@ button.pack(
 )
 
 
-# ============================================================
-# STATUS
-# ============================================================
-
 status_label = Label(
     panel,
     text="Ready",
-    bg=PANEL,
-    fg=MUTED,
     font=(
         "Segoe UI",
         9
@@ -2064,10 +2518,6 @@ status_label.pack(
     pady=(0, 8)
 )
 
-
-# ============================================================
-# PROGRESS
-# ============================================================
 
 style = ttk.Style()
 
@@ -2083,11 +2533,11 @@ except Exception:
 
 style.configure(
     "AC.Horizontal.TProgressbar",
-    troughcolor=PANEL_2,
-    background=GREEN,
-    bordercolor=PANEL_2,
-    lightcolor=GREEN,
-    darkcolor=GREEN
+    troughcolor=DARK["panel2"],
+    background=settings["accent"],
+    bordercolor=DARK["panel2"],
+    lightcolor=settings["accent"],
+    darkcolor=settings["accent"]
 )
 
 
@@ -2104,15 +2554,9 @@ progress_bar.pack(
 )
 
 
-# ============================================================
-# LOG
-# ============================================================
-
 log_title = Label(
     panel,
     text="INSTALLATION LOG",
-    bg=PANEL,
-    fg=MUTED,
     font=(
         "Segoe UI",
         8,
@@ -2128,9 +2572,6 @@ log_title.pack(
 
 log_box = Text(
     panel,
-    bg="#0B0D0F",
-    fg=TEXT,
-    insertbackground=TEXT,
     relief="flat",
     borderwidth=0,
     height=11,
@@ -2154,17 +2595,11 @@ log_box.config(
 )
 
 
-# ============================================================
-# FOOTER
-# ============================================================
-
 footer = Label(
     root,
     text=(
-        "Automatic detection  •  Auto repair  •  Safe CSP merging"
+        f"{APP_NAME} v{VERSION}  •  Auto detection  •  Auto repair"
     ),
-    bg=BG,
-    fg=MUTED,
     font=(
         "Segoe UI",
         8
@@ -2174,6 +2609,13 @@ footer = Label(
 footer.pack(
     pady=(0, 18)
 )
+
+
+# ============================================================
+# APPLY INITIAL THEME
+# ============================================================
+
+apply_theme()
 
 
 # ============================================================
